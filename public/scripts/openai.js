@@ -2556,7 +2556,9 @@ function getReasoningEffort(settings = null, model = null) {
             }
         }
 
-        if (settings.chat_completion_source === chat_completion_sources.CUSTOM && /^koboldcpp\/(.+)$/.test(model)) {
+        // Custom endpoints (proxies / local gateways) get the full effort scale.
+        // Official OpenAI still uses the narrower mapping below.
+        if (settings.chat_completion_source === chat_completion_sources.CUSTOM) {
             switch (settings.reasoning_effort) {
                 case reasoning_effort_types.auto:
                     return undefined;
