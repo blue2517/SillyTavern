@@ -3,11 +3,12 @@
         "checkJs": true,
         "target": "ESNext",
         "module": "ESNext",
-        "moduleResolution": "node",
+        "moduleResolution": "node10",
         "allowUmdGlobalAccess": true,
         "allowSyntheticDefaultImports": true,
         "strictBindCallApply": true,
         "baseUrl": ".",
+        "ignoreDeprecations": "6.0",
         "paths": {
             "/*": [
                 "./*"
