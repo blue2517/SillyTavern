@@ -4,6 +4,41 @@
 
 世界书通常位于 `<用户目录>/worlds/*.json`。文件名是世界书名称，但“当前生效的世界书”可能来自多个作用域，不能只看编辑器当前打开的文件。
 
+## 快速读取流程
+
+用户只要求“读取这个世界书”时，先区分任务范围，不要默认执行完整的生效注入审计：
+
+- **读取编辑器中明确展示的世界书**：截图或界面标题只能作为候选名称。先验证 `<用户目录>/worlds/<候选名称>.json` 确实存在；若同时涉及当前角色，再核对角色卡 `data.extensions.world` 是否指向同名世界书。验证成功后直接读取该 JSON，不必先枚举全部角色、聊天和资产。
+- **分析当前实际生效或本轮注入的世界书**：再按下文完整解析全局、角色、聊天、Persona、群聊和扩展作用域。
+
+推荐的最短路径：
+
+1. 读取仓库根目录 `config.yaml`，确认 `dataRoot`、`enableUserAccounts` 和实际用户目录。
+2. 读取 `<用户目录>/settings.json` 中的 `active_character`、`active_group`、`world_info_settings.world_info` 与 `power_user.persona_description_lorebook`。
+3. 若有活动角色，直接解析 `<用户目录>/characters/<active_character>`，读取 `data.extensions.world`；不要为了查找 PNG 元数据重新搜索实现，固定使用项目的 `src/character-card-parser.js`：
+
+   ```bash
+   node --input-type=module -e "import { parse } from './src/character-card-parser.js'; const card=JSON.parse(await parse(process.argv[1], 'png')); const data=card.data ?? card; console.log(JSON.stringify({ name:data.name, world:data.extensions?.world }, null, 2));" "<角色卡路径>"
+   ```
+
+4. 若 `data.extensions.world` 非空，直接读取 `<用户目录>/worlds/<world>.json`。世界书条目是 `entries` 对象，应使用 `Object.values(entries)` 统计和遍历，不要假定 UID 连续。
+5. 只有用户要求当前聊天绑定或实际注入时，才定位聊天 JSONL；聊天元数据在首行，优先只解析首行的 `chat_metadata.world_info`，不要读取整段聊天正文。
+
+### 工具使用注意
+
+- 直接候选路径优先于扫描整个 `<用户目录>`；该目录可能包含数千项资产。
+- 使用 Glob 查找资产时，优先把 `path` 指向具体资产目录（如 `worlds/`、`characters/`、目标角色的 `chats/`），再使用 `**/*.json`、`**/*.png` 或 `**/*.jsonl`。这对包含空格和非 ASCII 文件名的路径更稳妥。
+- PNG 角色卡必须通过上述解析器读取元数据，不能把图片可视内容或缩略图当成角色数据。
+- 角色卡中的 `data.character_book` 是卡内嵌世界书，可能是导入时的旧副本；当 `data.extensions.world` 已绑定外部世界书时，运行时内容以 `worlds/<名称>.json` 为准。除非用户要求比较版本，否则不要因内嵌副本条目数不同而转去分析它。
+
+### 完成读取时至少确认
+
+- 实际源文件路径和绑定来源；
+- 条目总数、启用/禁用数、常驻与关键词触发数；
+- 注入位置、深度、顺序、概率和递归相关字段；
+- 世界观主体、状态记录/记忆条目及其触发关系；
+- 是否存在全局、聊天、Persona 或附加世界书叠加。
+
 ## 确定生效的世界书集合
 
 按以下来源分别解析，再去重：

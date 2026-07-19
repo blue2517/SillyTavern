@@ -2563,7 +2563,7 @@ function getReasoningEffort(settings = null, model = null) {
                 case reasoning_effort_types.auto:
                     return undefined;
                 case reasoning_effort_types.min:
-                    return 'minimal';
+                    return 'none';
                 case reasoning_effort_types.low:
                     return 'low';
                 case reasoning_effort_types.medium:
