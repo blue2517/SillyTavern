@@ -2551,7 +2551,10 @@ router.post('/generate', async function (request, response) {
             };
         }
 
+        const { tools, tool_choice: toolChoice, ...remainingBodyParams } = bodyParams;
         const requestBody = {
+            'tools': tools,
+            'tool_choice': toolChoice,
             'messages': isTextCompletion === false ? request.body.messages : undefined,
             'prompt': isTextCompletion === true ? textPrompt : undefined,
             'model': request.body.model,
@@ -2567,7 +2570,7 @@ router.post('/generate', async function (request, response) {
             'logit_bias': request.body.logit_bias,
             'seed': request.body.seed,
             'n': request.body.n,
-            ...bodyParams,
+            ...remainingBodyParams,
         };
 
         if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.CUSTOM) {
