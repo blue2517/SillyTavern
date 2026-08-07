@@ -13,7 +13,7 @@ export const router = express.Router();
 const visitHeaders = {
     'Accept': 'text/html',
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Accept-Language': 'en-US,en;q=0.5',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
     'Accept-Encoding': 'gzip, deflate, br',
     'Connection': 'keep-alive',
     'Cache-Control': 'no-cache',
@@ -163,7 +163,7 @@ router.post('/transcript', async (request, response) => {
 
 router.post('/searxng', async (request, response) => {
     try {
-        const { baseUrl, query, preferences, categories } = request.body;
+        const { baseUrl, query, username, password, preferences, categories } = request.body;
 
         if (!baseUrl || !query) {
             console.error('Missing required parameters for /searxng');
@@ -172,8 +172,13 @@ router.post('/searxng', async (request, response) => {
 
         console.debug('SearXNG query', baseUrl, query);
 
+        const searxngHeaders = { ...visitHeaders };
+        if (username && password) {
+            searxngHeaders.Authorization = `Basic ${Buffer.from(`${username}:${password}`, 'utf8').toString('base64')}`;
+        }
+
         const mainPageUrl = new URL(baseUrl);
-        const mainPageRequest = await fetch(mainPageUrl, { headers: visitHeaders });
+        const mainPageRequest = await fetch(mainPageUrl, { headers: searxngHeaders });
 
         if (!mainPageRequest.ok) {
             console.error('SearXNG request failed', mainPageRequest.statusText);
@@ -185,7 +190,7 @@ router.post('/searxng', async (request, response) => {
 
         if (clientHref) {
             const clientUrl = new URL(clientHref, baseUrl);
-            await fetch(clientUrl, { headers: visitHeaders });
+            await fetch(clientUrl, { headers: searxngHeaders });
         }
 
         const searchUrl = new URL('/search', baseUrl);
@@ -199,7 +204,7 @@ router.post('/searxng', async (request, response) => {
         }
         searchUrl.search = searchParams.toString();
 
-        const searchResult = await fetch(searchUrl, { headers: visitHeaders });
+        const searchResult = await fetch(searchUrl, { headers: searxngHeaders });
 
         if (!searchResult.ok) {
             const text = await searchResult.text();

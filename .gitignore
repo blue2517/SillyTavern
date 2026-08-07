@@ -59,3 +59,4 @@ yarn.lock
 *.code-workspace
 test-results/
 /资源/
+cliproxy_test.zip
