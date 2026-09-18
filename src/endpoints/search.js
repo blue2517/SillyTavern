@@ -162,6 +162,15 @@ router.post('/transcript', async (request, response) => {
 });
 
 router.post('/searxng', async (request, response) => {
+    const timingStartedAt = process.hrtime.bigint();
+    const elapsedMs = () => Math.round(Number(process.hrtime.bigint() - timingStartedAt) / 1e3) / 1e3;
+    const timing = {
+        traceId: String(request.body?.traceId || `backend-${Date.now().toString(36)}`),
+        jobId: String(request.body?.jobId || ''),
+        query: String(request.body?.query || ''),
+        startedAt: new Date().toISOString(),
+        status: 'started',
+    };
     try {
         const { baseUrl, query, username, password, preferences, categories } = request.body;
 
@@ -178,19 +187,27 @@ router.post('/searxng', async (request, response) => {
         }
 
         const mainPageUrl = new URL(baseUrl);
+        let stageStartedAt = process.hrtime.bigint();
         const mainPageRequest = await fetch(mainPageUrl, { headers: searxngHeaders });
+        timing.mainPageFetchMs = Math.round(Number(process.hrtime.bigint() - stageStartedAt) / 1e3) / 1e3;
 
         if (!mainPageRequest.ok) {
+            timing.status = `main_page_http_${mainPageRequest.status}`;
             console.error('SearXNG request failed', mainPageRequest.statusText);
             return response.sendStatus(500);
         }
 
+        stageStartedAt = process.hrtime.bigint();
         const mainPageText = await mainPageRequest.text();
+        timing.mainPageReadMs = Math.round(Number(process.hrtime.bigint() - stageStartedAt) / 1e3) / 1e3;
         const clientHref = mainPageText.match(/href="(\/client.+\.css)"/)?.[1];
 
         if (clientHref) {
             const clientUrl = new URL(clientHref, baseUrl);
-            await fetch(clientUrl, { headers: searxngHeaders });
+            stageStartedAt = process.hrtime.bigint();
+            const clientResult = await fetch(clientUrl, { headers: searxngHeaders });
+            timing.clientCssFetchMs = Math.round(Number(process.hrtime.bigint() - stageStartedAt) / 1e3) / 1e3;
+            timing.clientCssStatus = clientResult.status;
         }
 
         const searchUrl = new URL('/search', baseUrl);
@@ -204,19 +221,34 @@ router.post('/searxng', async (request, response) => {
         }
         searchUrl.search = searchParams.toString();
 
+        stageStartedAt = process.hrtime.bigint();
         const searchResult = await fetch(searchUrl, { headers: searxngHeaders });
+        timing.searchFetchMs = Math.round(Number(process.hrtime.bigint() - stageStartedAt) / 1e3) / 1e3;
+        timing.searxngServerTiming = searchResult.headers.get('server-timing') || '';
 
         if (!searchResult.ok) {
+            timing.status = `search_http_${searchResult.status}`;
             const text = await searchResult.text();
             console.error('SearXNG request failed', searchResult.statusText, text);
             return response.sendStatus(500);
         }
 
+        stageStartedAt = process.hrtime.bigint();
         const data = await searchResult.text();
+        timing.searchReadMs = Math.round(Number(process.hrtime.bigint() - stageStartedAt) / 1e3) / 1e3;
+        timing.responseBytes = Buffer.byteLength(data, 'utf8');
+        timing.status = 'ok';
+        timing.totalMs = elapsedMs();
+        response.set('Server-Timing', timing.searxngServerTiming);
         return response.send(data);
     } catch (error) {
+        timing.status = 'error';
+        timing.error = error?.message ?? String(error);
         console.error('SearXNG request failed', error);
         return response.sendStatus(500);
+    } finally {
+        timing.totalMs = elapsedMs();
+        console.info('[WebSearchTiming] SearXNG backend', JSON.stringify(timing));
     }
 });
 
