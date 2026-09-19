@@ -2602,6 +2602,29 @@ router.post('/generate', async function (request, response) {
             /** @type {any} */
             const json = await fetchResponse.json();
             console.debug('Chat Completion response:', json);
+            if (Array.isArray(json?.choices)) {
+                for (const choice of json.choices) {
+                    const toolCalls = choice?.message?.tool_calls;
+                    if (Array.isArray(toolCalls)) {
+                        for (const toolCall of toolCalls) {
+                            const fnName = toolCall?.function?.name || '';
+                            const argsStr = toolCall?.function?.arguments;
+                            if (typeof argsStr === 'string') {
+                                try {
+                                    const parsedArgs = JSON.parse(argsStr);
+                                    if (typeof parsedArgs?.content === 'string') {
+                                        console.log(`\x1b[36m[防截断/Tool Call 内容: ${fnName}]\x1b[0m\n${parsedArgs.content}`);
+                                    } else {
+                                        console.log(`\x1b[36m[Tool Call 参数: ${fnName}]\x1b[0m`, parsedArgs);
+                                    }
+                                } catch {
+                                    console.log(`\x1b[33m[Tool Call 原始参数: ${fnName}]\x1b[0m`, argsStr);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             return response.send(json);
         } else {
             const responseText = await fetchResponse.text();
